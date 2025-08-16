@@ -1,6 +1,8 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use anyhow::Context;
+use bytes::Bytes;
+use tokio::sync::Mutex;
 use axum::{
     body::Body,
     extract::{Path, State},
@@ -10,11 +12,12 @@ use axum::{
     Router,
 };
 use tokio::signal;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tower_http::trace::TraceLayer;
 
 #[derive(Clone, Default)]
 struct AppState {
+    store: Arc<Mutex<HashMap<String, Bytes>>>,
 }
 
 type SharedState = Arc<AppState>;
@@ -86,24 +89,49 @@ async fn health() -> impl IntoResponse {
     (StatusCode::OK, "ok\n")
 }
 
-async fn get_object(State(_state): State<SharedState>, Path(_path): Path<String>) -> impl IntoResponse {
+async fn get_object(State(state): State<SharedState>, Path(path): Path<String>) -> impl IntoResponse {
+    let store = state.store.lock().await;
+    if let Some(bytes) = store.get(&path) {
+        tracing::info!(path, "object retrieved");
+        return Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from(bytes.clone()))
+            .unwrap();
+    }
+    tracing::warn!(path, "object not found");
     Response::builder()
-        .status(StatusCode::NOT_IMPLEMENTED)
-        .body(Body::from("GET not implemented yet"))
+        .status(StatusCode::NOT_FOUND)
+        .body(Body::from("Object not found\n"))
         .unwrap()
 }
 
-async fn put_object(State(_state): State<SharedState>, Path(_path): Path<String>, body: Body) -> impl IntoResponse {
-    let _ = axum::body::to_bytes(body, 1024 * 1024).await;
-    Response::builder()
-        .status(StatusCode::NOT_IMPLEMENTED)
-        .body(Body::from("PUT not implemented yet"))
-        .unwrap()
+async fn put_object(State(state): State<SharedState>, Path(path): Path<String>, body: Body) -> impl IntoResponse {
+    match axum::body::to_bytes(body, 1024 * 1024).await {
+        Ok(bytes) => {
+            let mut store = state.store.lock().await;
+            store.insert(path.clone(), bytes);
+            tracing::info!(path, "stored object");
+            (StatusCode::CREATED, format!("Object stored at {}\n", path))
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, path, "failed to read request body");
+            (StatusCode::BAD_REQUEST, "Failed to read body\n".to_string())
+        }
+    }
 }
 
-async fn delete_object(State(_state): State<SharedState>, Path(_path): Path<String>) -> impl IntoResponse {
+async fn delete_object(State(state): State<SharedState>, Path(path): Path<String>) -> impl IntoResponse {
+    let mut store = state.store.lock().await;
+    if store.remove(&path).is_some() {
+        tracing::info!(path, "object deleted");
+        return Response::builder()
+            .status(StatusCode::NO_CONTENT)
+            .body(Body::empty())
+            .unwrap();
+    }
+    tracing::warn!(path, "object not found");
     Response::builder()
-        .status(StatusCode::NOT_IMPLEMENTED)
-        .body(Body::from("DELETE not implemented yet"))
+        .status(StatusCode::NOT_FOUND)
+        .body(Body::from("Object not found\n"))
         .unwrap()
 }
