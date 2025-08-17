@@ -1,8 +1,7 @@
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-
 use anyhow::Context;
 use bytes::Bytes;
-use tokio::sync::Mutex;
+use tokio::sync::{broadcast, Mutex};
 use axum::{
     body::Body,
     extract::{Path, State},
@@ -15,9 +14,44 @@ use tokio::signal;
 use tracing::{error, info, warn};
 use tower_http::trace::TraceLayer;
 
+#[derive(Clone)]
+struct ChunkedObject {
+    chunks: Vec<Bytes>,
+    is_complete: bool,
+    notifier: broadcast::Sender<Bytes>,
+}
+
+impl ChunkedObject {
+    fn new() -> Self {
+        let (tx, _) = broadcast::channel(100);
+        Self {
+            chunks: Vec::new(),
+            is_complete: false,
+            notifier: tx,
+        }
+    }
+
+    fn add_chunk(&mut self, chunk: Bytes) {
+        self.chunks.push(chunk.clone());
+        let _ = self.notifier.send(chunk);
+    }
+
+    fn complete(&mut self) {
+        self.is_complete = true;
+        let _ = self.notifier.send(Bytes::new());
+    }
+
+    fn get_all_data(&self) -> Bytes {
+        self.chunks.iter().fold(Bytes::new(), |mut acc, chunk| {
+            acc = [acc, chunk.clone()].concat().into();
+            acc
+        })
+    }
+}
+
 #[derive(Clone, Default)]
 struct AppState {
-    store: Arc<Mutex<HashMap<String, Bytes>>>,
+    store: Arc<Mutex<HashMap<String, ChunkedObject>>>,
 }
 
 type SharedState = Arc<AppState>;
@@ -91,11 +125,12 @@ async fn health() -> impl IntoResponse {
 
 async fn get_object(State(state): State<SharedState>, Path(path): Path<String>) -> impl IntoResponse {
     let store = state.store.lock().await;
-    if let Some(bytes) = store.get(&path) {
+    if let Some(object) = store.get(&path) {
+        let data = object.get_all_data();
         tracing::info!(path, "object retrieved");
         return Response::builder()
             .status(StatusCode::OK)
-            .body(Body::from(bytes.clone()))
+            .body(Body::from(data))
             .unwrap();
     }
     tracing::warn!(path, "object not found");
@@ -109,7 +144,10 @@ async fn put_object(State(state): State<SharedState>, Path(path): Path<String>, 
     match axum::body::to_bytes(body, 1024 * 1024).await {
         Ok(bytes) => {
             let mut store = state.store.lock().await;
-            store.insert(path.clone(), bytes);
+            let mut chunked_object = ChunkedObject::new();
+            chunked_object.add_chunk(bytes);
+            chunked_object.complete();
+            store.insert(path.clone(), chunked_object);
             tracing::info!(path, "stored object");
             (StatusCode::CREATED, format!("Object stored at {}\n", path))
         }
