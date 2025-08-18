@@ -19,3 +19,32 @@ target
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# Video streaming segments
+*.m4s
+*.ts
+*.m3u8
+*.mpd
+
+# Test files
+test_*.txt
+test_*.mp4
+test_*.m4s
+test_*.mpd
+test_*.dat
+big_file.dat
+binary_test.dat
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
