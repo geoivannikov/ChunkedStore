@@ -1,15 +1,10 @@
-use std::{
-    collections::HashMap,
-    convert::Infallible,
-    net::SocketAddr,
-    sync::Arc,
-};
+use std::{collections::HashMap, convert::Infallible, net::SocketAddr, sync::Arc};
 
 use anyhow::Context;
 use axum::{
     body::Body,
     extract::{Path, State},
-    http::{HeaderMap, HeaderValue, Response, StatusCode},
+    http::{header, HeaderValue, Response, StatusCode},
     response::IntoResponse,
     routing::get,
     Router,
@@ -64,21 +59,6 @@ impl ChunkedObject {
     fn subscribe(&self) -> broadcast::Receiver<ChunkMsg> {
         self.notifier.subscribe()
     }
-
-    fn into_all_bytes(&self) -> Bytes {
-        match self.chunks.len() {
-            0 => Bytes::new(),
-            1 => self.chunks[0].clone(),
-            _ => {
-                let total: usize = self.chunks.iter().map(|c| c.len()).sum();
-                let mut v = Vec::with_capacity(total);
-                for c in &self.chunks {
-                    v.extend_from_slice(c);
-                }
-                Bytes::from(v)
-            }
-        }
-    }
 }
 
 #[derive(Clone, Default)]
@@ -87,6 +67,16 @@ struct AppState {
 }
 
 type SharedState = Arc<AppState>;
+
+fn content_type_for(path: &str) -> &'static str {
+    if path.ends_with(".mpd") {
+        "application/dash+xml"
+    } else if path.ends_with(".m4s") || path.ends_with(".mp4") {
+        "video/mp4"
+    } else {
+        "application/octet-stream"
+    }
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -106,14 +96,26 @@ async fn main() -> anyhow::Result<()> {
 
     let state: SharedState = Arc::new(AppState::default());
 
+    use axum::http::Method;
+    use tower_http::cors::{Any, CorsLayer};
+
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([Method::GET, Method::PUT, Method::DELETE, Method::OPTIONS])
+        .allow_headers(Any);
+
     let app = Router::new()
         .route("/healthz", get(health))
         .route(
             "/{*path}",
-            get(get_object).put(put_object).delete(delete_object),
+            get(get_object)
+                .put(put_object)
+                .delete(delete_object)
+                .options(cors_preflight),
         )
         .with_state(state)
-        .layer(TraceLayer::new_for_http());
+        .layer(TraceLayer::new_for_http())
+        .layer(cors);
 
     let addr: SocketAddr = ([0, 0, 0, 0], port).into();
     info!(%addr, "starting server");
@@ -134,13 +136,14 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn shutdown_signal() {
-    let ctrl_c = async { let _ = signal::ctrl_c().await; };
+    let ctrl_c = async {
+        let _ = signal::ctrl_c().await;
+    };
 
     #[cfg(unix)]
     let terminate = async {
-        let mut sigterm =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                .expect("install SIGTERM handler");
+        let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("install SIGTERM handler");
         sigterm.recv().await;
     };
 
@@ -158,7 +161,15 @@ async fn health() -> impl IntoResponse {
     (StatusCode::OK, "ok\n")
 }
 
-async fn get_object(State(state): State<SharedState>, Path(path): Path<String>) -> impl IntoResponse {
+async fn cors_preflight(Path(path): Path<String>) -> impl IntoResponse {
+    tracing::debug!(%path, "CORS preflight request");
+    StatusCode::NO_CONTENT
+}
+
+async fn get_object(
+    State(state): State<SharedState>,
+    Path(path): Path<String>,
+) -> impl IntoResponse {
     tracing::debug!(%path, "GET: start");
 
     let (chunks, is_complete, rx) = {
@@ -174,11 +185,13 @@ async fn get_object(State(state): State<SharedState>, Path(path): Path<String>) 
         }
     };
 
+    let ct = content_type_for(&path);
+
     if is_complete {
-        let bytes = {
-            if chunks.len() == 1 {
-                chunks[0].clone()
-            } else {
+        let bytes = match chunks.len() {
+            0 => Bytes::new(),
+            1 => chunks[0].clone(),
+            _ => {
                 let total: usize = chunks.iter().map(|c| c.len()).sum();
                 let mut v = Vec::with_capacity(total);
                 for c in &chunks {
@@ -188,22 +201,24 @@ async fn get_object(State(state): State<SharedState>, Path(path): Path<String>) 
             }
         };
         tracing::info!(%path, size = bytes.len(), "GET: complete");
-        let mut resp = Response::builder().status(StatusCode::OK).body(Body::from(bytes)).unwrap();
-        resp.headers_mut().insert("Cache-Control", HeaderValue::from_static("no-store"));
+        let mut resp = Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from(bytes))
+            .unwrap();
+        let headers = resp.headers_mut();
+        headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+        headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(ct));
         return resp;
     }
 
     tracing::info!(%path, "GET: streaming (in-progress)");
 
     let historical = stream::iter(chunks.into_iter()).map(Ok::<Bytes, Infallible>);
-
     let live = stream::unfold(rx, |mut rx| async move {
         match rx.recv().await {
             Ok(ChunkMsg::Data(b)) => Some((Ok::<Bytes, Infallible>(b), rx)),
             Ok(ChunkMsg::Done) | Ok(ChunkMsg::Abort) => None,
-            Err(_lagged) => {
-                None
-            }
+            Err(_) => None,
         }
     });
 
@@ -213,8 +228,9 @@ async fn get_object(State(state): State<SharedState>, Path(path): Path<String>) 
         .status(StatusCode::OK)
         .body(Body::from_stream(body_stream))
         .unwrap();
-    resp.headers_mut()
-        .insert("Cache-Control", HeaderValue::from_static("no-store"));
+    let headers = resp.headers_mut();
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(ct));
     resp
 }
 
@@ -251,7 +267,7 @@ async fn put_object(
                     obj.add_chunk(bytes);
                 } else {
                     let mut obj = ChunkedObject::new();
-                    obj.add_chunk(Bytes::new());
+                    obj.add_chunk(bytes.clone());
                     store.insert(path.clone(), obj);
                 }
             }

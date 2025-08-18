@@ -106,6 +106,79 @@ echo -e "${BLUE}8. DELETE Non-existent File Test${NC}"
 curl -s -X DELETE "$SERVER_URL/does_not_exist.txt" -w "%{http_code}" | grep -q "404"
 check_result $?
 
+echo -e "${BLUE}9. CORS Preflight Test${NC}"
+curl -s -X PUT "$SERVER_URL/test.txt" -d "test content" > /dev/null
+
+OPTIONS_STATUS=$(curl -s -X OPTIONS "$SERVER_URL/test.txt" \
+    -H "Origin: http://localhost:3000" \
+    -H "Access-Control-Request-Method: GET" \
+    -w "%{http_code}" \
+    -o /dev/null)
+
+echo "OPTIONS status code: $OPTIONS_STATUS"
+if [ "$OPTIONS_STATUS" = "200" ]; then
+    check_result 0
+else
+    echo "Expected 200, got $OPTIONS_STATUS"
+    check_result 1
+fi
+
+echo -e "${BLUE}10. Content-Type Detection Test${NC}"
+curl -s -X PUT "$SERVER_URL/test.mpd" -d "DASH manifest content" > /dev/null
+CONTENT_TYPE=$(curl -s -I "$SERVER_URL/test.mpd" | grep -i "content-type" | head -1)
+if echo "$CONTENT_TYPE" | grep -q "application/dash+xml"; then
+    echo "✓ MPD content-type correct"
+    MPD_RESULT=0
+else
+    echo "✗ MPD content-type wrong: $CONTENT_TYPE"
+    MPD_RESULT=1
+fi
+
+curl -s -X PUT "$SERVER_URL/test.mp4" -d "video content" > /dev/null
+CONTENT_TYPE=$(curl -s -I "$SERVER_URL/test.mp4" | grep -i "content-type" | head -1)
+if echo "$CONTENT_TYPE" | grep -q "video/mp4"; then
+    echo "✓ MP4 content-type correct"
+    MP4_RESULT=0
+else
+    echo "✗ MP4 content-type wrong: $CONTENT_TYPE"
+    MP4_RESULT=1
+fi
+
+CONTENT_TYPE=$(curl -s -I "$SERVER_URL/test.txt" | grep -i "content-type" | head -1)
+if echo "$CONTENT_TYPE" | grep -q "application/octet-stream"; then
+    echo "✓ Generic content-type correct"
+    GENERIC_RESULT=0
+else
+    echo "✗ Generic content-type wrong: $CONTENT_TYPE"
+    GENERIC_RESULT=1
+fi
+
+if [ $MPD_RESULT -eq 0 ] && [ $MP4_RESULT -eq 0 ] && [ $GENERIC_RESULT -eq 0 ]; then
+    check_result 0
+else
+    check_result 1
+fi
+
+echo -e "${BLUE}11. Cache-Control Header Test${NC}"
+CACHE_CONTROL=$(curl -s -I "$SERVER_URL/test.txt" | grep -i "cache-control" | head -1)
+if echo "$CACHE_CONTROL" | grep -q "no-store"; then
+    check_result 0
+else
+    echo "Cache-Control header missing or wrong: $CACHE_CONTROL"
+    check_result 1
+fi
+
+echo -e "${BLUE}12. CORS Headers Test${NC}"
+CORS_HEADERS=$(curl -s -I "$SERVER_URL/test.txt" \
+    -H "Origin: http://localhost:3000" | grep -i "access-control-allow-origin")
+
+if echo "$CORS_HEADERS" | grep -q "access-control-allow-origin"; then
+    check_result 0
+else
+    echo "CORS headers missing: $CORS_HEADERS"
+    check_result 1
+fi
+
 echo -e "${BLUE}Cleaning up test files...${NC}"
 for i in {1..10}; do
     curl -s -X DELETE "$SERVER_URL/file_$i.txt" > /dev/null
@@ -114,5 +187,8 @@ curl -s -X DELETE "$SERVER_URL/stream1/segment001.mp4" > /dev/null
 curl -s -X DELETE "$SERVER_URL/stream1/segment002.mp4" > /dev/null
 curl -s -X DELETE "$SERVER_URL/stream2/manifest.mpd" > /dev/null
 curl -s -X DELETE "$SERVER_URL/big_file.dat" > /dev/null
+curl -s -X DELETE "$SERVER_URL/test.mpd" > /dev/null
+curl -s -X DELETE "$SERVER_URL/test.mp4" > /dev/null
+curl -s -X DELETE "$SERVER_URL/test.txt" > /dev/null
 
 echo -e "${GREEN}Testing completed!${NC}"
