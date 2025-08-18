@@ -42,6 +42,7 @@ binary_test.dat
 
 # Test coverage reports
 **/tarpaulin-report.html
+test_coverage/
 
 # OS generated files
 .DS_Store

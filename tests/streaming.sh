@@ -125,7 +125,7 @@ BG_PID=$!
 
 sleep 0.4
 PARTIAL="$(curl "${CURL_BASE[@]}" --no-buffer "$SERVER_URL/live_stream.txt" | head -c 5 || true)"
-[ "$PARTIAL" = "Hello" ] && check_result 0 || { echo "expected 'Hello', got: '$PARTIAL'"; check_result 1; }
+[ "$PARTIAL" = "Hello" ] && check_result 0 || check_result 1
 
 wait_with_timeout 5 "$BG_PID" 2>/dev/null || true
 
@@ -146,15 +146,14 @@ if ! wait_with_timeout 12 "${pids[@]}" 2>/dev/null; then
   check_result 1
 else
   if [ -s "$TMPDIR/put_fail" ]; then
-    echo -e "${YELLOW}PUT issues for ids: $(tr '\n' ' ' < "$TMPDIR/put_fail")${NC}"
     check_result 1
-  else
+else
     ok=0; bad=()
     for i in {1..10}; do
       body="$(curl "${CURL_BASE[@]}" "$SERVER_URL/file_$i.txt" 2>/dev/null || true)"
       if [ "$body" = "Content $i" ]; then ok=$((ok+1)); else bad+=("$i"); fi
     done
-    [ $ok -eq 10 ] && check_result 0 || { echo "Content mismatch for: ${bad[*]}"; check_result 1; }
+    [ $ok -eq 10 ] && check_result 0 || check_result 1
   fi
 fi
 
@@ -162,7 +161,6 @@ echo -e "${BLUE}9. DELETE non-existent file${NC}"
 code="$(curl "${CURL_BASE[@]}" -o /dev/null -w '%{http_code}' -X DELETE "$SERVER_URL/does_not_exist.txt" 2>/dev/null || true)"
 [ "$code" = "404" ] && check_result 0 || check_result 1
 
-echo -e "${BLUE}Cleaning up test files...${NC}"
 for i in {1..10}; do curl "${CURL_BASE[@]}" -X DELETE "$SERVER_URL/file_$i.txt" >/dev/null 2>&1 || true; done
 for p in stream1/segment001.mp4 stream1/segment002.mp4 stream2/manifest.mpd big_file.dat live_stream.txt binary_test.dat; do
   curl "${CURL_BASE[@]}" -X DELETE "$SERVER_URL/$p" >/dev/null 2>&1 || true

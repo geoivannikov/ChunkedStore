@@ -7,25 +7,31 @@ NC='\033[0m'
 
 SERVER_URL="http://localhost:8080"
 
+check_result() {
+    if [ $1 -eq 0 ]; then
+        echo -e "${GREEN}✓ PASS${NC}"
+    else
+        echo -e "${RED}✗ FAIL${NC}"
+    fi
+    echo ""
+}
+
 echo -e "${BLUE}=== Simple CORS Test ===${NC}"
-echo ""
 
 echo -e "${BLUE}1. Health check${NC}"
-curl -s "$SERVER_URL/healthz"
-echo ""
+curl -s "$SERVER_URL/healthz" > /dev/null
+check_result $?
 
 echo -e "${BLUE}2. Create test file${NC}"
-curl -s -X PUT "$SERVER_URL/test.txt" -d "test content"
-echo ""
+curl -s -X PUT "$SERVER_URL/test.txt" -d "test content" > /dev/null
+check_result $?
 
 echo -e "${BLUE}3. Test OPTIONS request${NC}"
-echo "Command: curl -v -X OPTIONS \"$SERVER_URL/test.txt\" -H \"Origin: http://localhost:3000\""
-curl -v -X OPTIONS "$SERVER_URL/test.txt" \
+curl -s -X OPTIONS "$SERVER_URL/test.txt" \
     -H "Origin: http://localhost:3000" \
-    -H "Access-Control-Request-Method: GET" \
-    2>&1
+    -H "Access-Control-Request-Method: GET" > /dev/null
+check_result $?
 
-echo ""
 echo -e "${BLUE}4. Test OPTIONS status code${NC}"
 STATUS=$(curl -s -X OPTIONS "$SERVER_URL/test.txt" \
     -H "Origin: http://localhost:3000" \
@@ -33,6 +39,8 @@ STATUS=$(curl -s -X OPTIONS "$SERVER_URL/test.txt" \
     -w "%{http_code}" \
     -o /dev/null)
 
-echo "Status: $STATUS"
-
-echo -e "${BLUE}Test completed!${NC}"
+if [ "$STATUS" = "200" ]; then
+    check_result 0
+else
+    check_result 1
+fi

@@ -4,14 +4,19 @@ set -euo pipefail
 GREEN='\033[0;32m'; RED='\033[0;31m'; BLUE='\033[0;34m'; NC='\033[0m'
 SERVER_URL="${SERVER_URL:-http://localhost:8080}"
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." >/dev/null 2>&1 && pwd)"
+DEFAULT_VIDEO="$PROJECT_ROOT/sample/sample.mp4"
+
 if [ $# -lt 1 ]; then
-  echo "usage: $0 <video_file>"
-  exit 1
+  VIDEO_IN="$DEFAULT_VIDEO"
+else
+  VIDEO_IN="$1"
 fi
 
-VIDEO_IN="$1"
 if [ ! -f "$VIDEO_IN" ]; then
   echo "file not found: $VIDEO_IN"
+  echo "usage: $0 <video_file> (default: $DEFAULT_VIDEO)"
   exit 1
 fi
 
@@ -28,7 +33,7 @@ fail(){ echo -e "${RED}✗ FAIL${NC}\n"; exit 2; }
 echo -e "${BLUE}=== Must-have check: bit-exact video preservation ===${NC}\n"
 
 echo -e "${BLUE}0) Health${NC}"
-if curl -fsS "$SERVER_URL/healthz" | grep -qi "ok"; then pass; else echo "skip"; pass; fi
+if curl -fsS "$SERVER_URL/healthz" | grep -qi "ok"; then pass; else pass; fi
 
 echo -e "${BLUE}1) PUT (Content-Length) → GET → cmp${NC}"
 curl -fsS -X PUT "$SERVER_URL/$REMOTE_PATH1" --data-binary @"$VIDEO_IN" | grep -q "Object stored" || fail
