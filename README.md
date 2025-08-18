@@ -1,6 +1,6 @@
 # HTTP Object Storage Server
 
-A high-performance HTTP object storage server built in Rust with streaming capabilities, designed for video streaming and general file storage.
+HTTP object storage server built in Rust with streaming capabilities, designed for video streaming and general file storage.
 
 ## Architecture
 

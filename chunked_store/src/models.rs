@@ -17,6 +17,12 @@ pub struct ChunkedObject {
     pub notifier: broadcast::Sender<ChunkMsg>,
 }
 
+impl Default for ChunkedObject {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ChunkedObject {
     pub fn new() -> Self {
         let (tx, _) = broadcast::channel(1024);
