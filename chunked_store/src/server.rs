@@ -82,3 +82,165 @@ pub async fn run_server(state: SharedState) -> anyhow::Result<()> {
     info!("server stopped");
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::{Method, StatusCode};
+    use tower::util::ServiceExt;
+    use axum::body::Body;
+
+    #[tokio::test]
+    async fn health_endpoint_works() {
+        let state = SharedState::default();
+        let app = create_app(state).await;
+
+        let req = axum::http::Request::builder()
+            .method(Method::GET)
+            .uri("/healthz")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn cors_headers_present() {
+        let state = SharedState::default();
+        let app = create_app(state).await;
+
+        let req = axum::http::Request::builder()
+            .method(Method::OPTIONS)
+            .uri("/test.txt")
+            .header("Origin", "http://localhost:3000")
+            .header("Access-Control-Request-Method", "GET")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(resp.headers().contains_key("access-control-allow-origin"));
+        assert!(resp.headers().contains_key("access-control-allow-methods"));
+    }
+
+    #[tokio::test]
+    async fn app_has_all_routes() {
+        let state = SharedState::default();
+        let app = create_app(state).await;
+
+        let methods = [Method::GET, Method::PUT, Method::DELETE, Method::OPTIONS];
+        for method in methods {
+            let req = axum::http::Request::builder()
+                .method(method)
+                .uri("/test-route")
+                .body(Body::empty())
+                .unwrap();
+
+            let resp = app.clone().oneshot(req).await.unwrap();
+            assert_ne!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+        }
+    }
+
+    #[tokio::test]
+    async fn create_app_with_cors_layers() {
+        let state = SharedState::default();
+        let app = create_app(state).await;
+
+        let req = axum::http::Request::builder()
+            .method(Method::GET)
+            .uri("/healthz")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_port_environment_variable() {
+        std::env::set_var("PORT", "9090");
+        let state = SharedState::default();
+        
+        let app = create_app(state).await;
+        let req = axum::http::Request::builder()
+            .method(Method::GET)
+            .uri("/healthz")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        
+        std::env::remove_var("PORT");
+    }
+
+    #[tokio::test]
+    async fn test_create_app_with_trace_layer() {
+        let state = SharedState::default();
+        let app = create_app(state).await;
+
+        let req = axum::http::Request::builder()
+            .method(Method::GET)
+            .uri("/healthz")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_cors_methods_allowed() {
+        let state = SharedState::default();
+        let app = create_app(state).await;
+
+        let methods = [Method::GET, Method::PUT, Method::DELETE, Method::OPTIONS];
+        for method in methods {
+            let req = axum::http::Request::builder()
+                .method(method)
+                .uri("/test")
+                .header("Origin", "http://localhost:3000")
+                .body(Body::empty())
+                .unwrap();
+
+            let resp = app.clone().oneshot(req).await.unwrap();
+            assert!(resp.headers().contains_key("access-control-allow-origin"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_health_route_specific() {
+        let state = SharedState::default();
+        let app = create_app(state).await;
+
+        let req = axum::http::Request::builder()
+            .method(Method::GET)
+            .uri("/healthz")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(&body[..], b"ok\n");
+    }
+
+    #[tokio::test]
+    async fn test_wildcard_route_handles_all_paths() {
+        let state = SharedState::default();
+        let app = create_app(state).await;
+
+        let test_paths = ["/", "/test", "/deep/path/file.txt", "/api/v1/data"];
+        for path in test_paths {
+            let req = axum::http::Request::builder()
+                .method(Method::GET)
+                .uri(path)
+                .body(Body::empty())
+                .unwrap();
+
+            let resp = app.clone().oneshot(req).await.unwrap();
+            assert_ne!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+        }
+    }
+}
