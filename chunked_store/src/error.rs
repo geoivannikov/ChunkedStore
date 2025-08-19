@@ -108,10 +108,10 @@ mod tests {
     fn test_context_ext_with_context() {
         let io_error = io::Error::new(io::ErrorKind::NotFound, "file not found");
         let result: Result<String, io::Error> = Err(io_error);
-        
+
         let context_result = result.with_context(|| "Failed to read config");
         assert!(context_result.is_err());
-        
+
         match context_result {
             Err(AppError::Server(msg)) => {
                 assert!(msg.contains("Failed to read config"));
@@ -133,7 +133,7 @@ mod tests {
     fn test_app_result_type() {
         let success: AppResult<String> = Ok("test".to_string());
         assert!(success.is_ok());
-        
+
         let failure: AppResult<String> = Err(AppError::Server("error".to_string()));
         assert!(failure.is_err());
     }

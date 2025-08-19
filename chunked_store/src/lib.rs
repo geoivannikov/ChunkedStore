@@ -1,4 +1,4 @@
-pub mod models;
-pub mod handlers;
-pub mod server;
 pub mod error;
+pub mod handlers;
+pub mod models;
+pub mod server;

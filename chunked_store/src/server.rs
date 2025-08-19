@@ -1,15 +1,12 @@
-use crate::error::{AppResult, AppError, ContextExt};
-use axum::{
-    routing::get,
-    Router,
-};
+use crate::error::{AppError, AppResult, ContextExt};
+use axum::{routing::get, Router};
 use std::net::SocketAddr;
 use tokio::signal;
 use tower_http::trace::TraceLayer;
 use tracing::{error, info};
 
+use crate::handlers::{delete_object, get_object, health, put_object};
 use crate::models::SharedState;
-use crate::handlers::{health, get_object, put_object, delete_object};
 
 pub async fn shutdown_signal() {
     let ctrl_c = async {
@@ -38,9 +35,7 @@ pub async fn create_app(state: SharedState) -> Router {
         .route("/healthz", get(health))
         .route(
             "/{*path}",
-            get(get_object)
-                .put(put_object)
-                .delete(delete_object),
+            get(get_object).put(put_object).delete(delete_object),
         )
         .with_state(state)
         .layer(TraceLayer::new_for_http())
@@ -74,9 +69,9 @@ pub async fn run_server(state: SharedState) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::body::Body;
     use axum::http::{Method, StatusCode};
     use tower::util::ServiceExt;
-    use axum::body::Body;
 
     #[tokio::test]
     async fn health_endpoint_works() {
@@ -92,8 +87,6 @@ mod tests {
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
     }
-
-
 
     #[tokio::test]
     async fn app_has_all_routes() {
@@ -113,13 +106,11 @@ mod tests {
         }
     }
 
-
-
     #[tokio::test]
     async fn test_port_environment_variable() {
         std::env::set_var("PORT", "9090");
         let state = SharedState::default();
-        
+
         let app = create_app(state).await;
         let req = axum::http::Request::builder()
             .method(Method::GET)
@@ -129,7 +120,7 @@ mod tests {
 
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        
+
         std::env::remove_var("PORT");
     }
 
@@ -148,8 +139,6 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-
-
     #[tokio::test]
     async fn test_health_route_specific() {
         let state = SharedState::default();
@@ -163,7 +152,9 @@ mod tests {
 
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
         assert_eq!(&body[..], b"ok\n");
     }
 

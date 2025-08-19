@@ -1,5 +1,5 @@
-use chunked_store::server;
 use chunked_store::error::AppResult;
+use chunked_store::server;
 
 fn setup_app() -> AppResult<chunked_store::models::SharedState> {
     tracing_subscriber::fmt()

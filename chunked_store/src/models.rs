@@ -1,7 +1,7 @@
 use bytes::Bytes;
-use tokio::sync::{broadcast, Mutex};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::{broadcast, Mutex};
 
 #[derive(Clone, Debug)]
 pub enum ChunkMsg {
@@ -76,10 +76,16 @@ mod tests {
 
     #[tokio::test]
     async fn content_type_detection() {
-        assert_eq!(content_type_for("/a/b/manifest.mpd"), "application/dash+xml");
+        assert_eq!(
+            content_type_for("/a/b/manifest.mpd"),
+            "application/dash+xml"
+        );
         assert_eq!(content_type_for("/x/y/chunk.m4s"), "video/mp4");
         assert_eq!(content_type_for("/x/y/video.mp4"), "video/mp4");
-        assert_eq!(content_type_for("/x/y/file.bin"), "application/octet-stream");
+        assert_eq!(
+            content_type_for("/x/y/file.bin"),
+            "application/octet-stream"
+        );
     }
 
     #[tokio::test]
@@ -94,17 +100,27 @@ mod tests {
         obj.add_chunk(part2.clone());
 
         let m1 = rx.recv().await.unwrap();
-        match m1 { ChunkMsg::Data(b) => assert_eq!(b, part1), _ => panic!("unexpected msg") }
+        match m1 {
+            ChunkMsg::Data(b) => assert_eq!(b, part1),
+            _ => panic!("unexpected msg"),
+        }
 
         let m2 = rx.recv().await.unwrap();
-        match m2 { ChunkMsg::Data(b) => assert_eq!(b, part2), _ => panic!("unexpected msg") }
+        match m2 {
+            ChunkMsg::Data(b) => assert_eq!(b, part2),
+            _ => panic!("unexpected msg"),
+        }
 
         obj.complete();
         let done = rx.recv().await.unwrap();
-        match done { ChunkMsg::Done => {}, _ => panic!("expected done") }
+        match done {
+            ChunkMsg::Done => {}
+            _ => panic!("expected done"),
+        }
 
         match rx.try_recv() {
-            Err(TryRecvError::Empty) | Err(TryRecvError::Closed) | Err(TryRecvError::Lagged(_)) => {}
+            Err(TryRecvError::Empty) | Err(TryRecvError::Closed) | Err(TryRecvError::Lagged(_)) => {
+            }
             Ok(_) => panic!("unexpected extra message after Done"),
         }
     }

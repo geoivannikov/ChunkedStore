@@ -9,13 +9,11 @@ use futures_util::{stream, StreamExt};
 use std::convert::Infallible;
 use tracing::{info, warn};
 
-use crate::models::{ChunkMsg, SharedState, content_type_for};
+use crate::models::{content_type_for, ChunkMsg, SharedState};
 
 pub async fn health() -> impl IntoResponse {
     (StatusCode::OK, "ok\n")
 }
-
-
 
 pub async fn get_object(
     State(state): State<SharedState>,
@@ -171,10 +169,10 @@ pub async fn delete_object(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::StatusCode as SC;
     use axum::body::{self, Body as AxumBody};
-    use axum::Router;
+    use axum::http::StatusCode as SC;
     use axum::routing::get;
+    use axum::Router;
     use tower::util::ServiceExt;
 
     fn test_state() -> SharedState {
@@ -182,10 +180,12 @@ mod tests {
     }
 
     fn app(state: SharedState) -> Router {
-        Router::new().route(
-            "/{*path}",
-            get(get_object).put(put_object).delete(delete_object),
-        ).with_state(state)
+        Router::new()
+            .route(
+                "/{*path}",
+                get(get_object).put(put_object).delete(delete_object),
+            )
+            .with_state(state)
     }
 
     #[tokio::test]
@@ -194,29 +194,36 @@ mod tests {
         let app = app(state.clone());
 
         let req = axum::http::Request::builder()
-            .method("PUT").uri("/foo.txt")
+            .method("PUT")
+            .uri("/foo.txt")
             .body(AxumBody::from("hello"))
             .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
         assert_eq!(resp.status(), SC::CREATED);
 
         let req = axum::http::Request::builder()
-            .method("GET").uri("/foo.txt")
-            .body(AxumBody::empty()).unwrap();
+            .method("GET")
+            .uri("/foo.txt")
+            .body(AxumBody::empty())
+            .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
         assert_eq!(resp.status(), SC::OK);
         let body = body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
         assert_eq!(&body[..], b"hello");
 
         let req = axum::http::Request::builder()
-            .method("DELETE").uri("/foo.txt")
-            .body(AxumBody::empty()).unwrap();
+            .method("DELETE")
+            .uri("/foo.txt")
+            .body(AxumBody::empty())
+            .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
         assert_eq!(resp.status(), SC::NO_CONTENT);
 
         let req = axum::http::Request::builder()
-            .method("GET").uri("/foo.txt")
-            .body(AxumBody::empty()).unwrap();
+            .method("GET")
+            .uri("/foo.txt")
+            .body(AxumBody::empty())
+            .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
         assert_eq!(resp.status(), SC::NOT_FOUND);
     }
@@ -227,22 +234,26 @@ mod tests {
         let app = app(state.clone());
 
         let put_req1 = axum::http::Request::builder()
-            .method("PUT").uri("/conflict.txt")
+            .method("PUT")
+            .uri("/conflict.txt")
             .body(AxumBody::from("first upload"))
             .unwrap();
         let resp1 = app.clone().oneshot(put_req1).await.unwrap();
         assert_eq!(resp1.status(), SC::CREATED);
 
         let put_req2 = axum::http::Request::builder()
-            .method("PUT").uri("/conflict.txt")
+            .method("PUT")
+            .uri("/conflict.txt")
             .body(AxumBody::from("second upload"))
             .unwrap();
         let resp2 = app.clone().oneshot(put_req2).await.unwrap();
         assert_eq!(resp2.status(), SC::CREATED);
 
         let get_req = axum::http::Request::builder()
-            .method("GET").uri("/conflict.txt")
-            .body(AxumBody::empty()).unwrap();
+            .method("GET")
+            .uri("/conflict.txt")
+            .body(AxumBody::empty())
+            .unwrap();
         let resp = app.oneshot(get_req).await.unwrap();
         assert_eq!(resp.status(), SC::OK);
         let body = body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
@@ -255,8 +266,10 @@ mod tests {
         let app = app(state.clone());
 
         let req = axum::http::Request::builder()
-            .method("GET").uri("/nonexistent.txt")
-            .body(AxumBody::empty()).unwrap();
+            .method("GET")
+            .uri("/nonexistent.txt")
+            .body(AxumBody::empty())
+            .unwrap();
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), SC::NOT_FOUND);
     }
@@ -267,8 +280,10 @@ mod tests {
         let app = app(state.clone());
 
         let req = axum::http::Request::builder()
-            .method("DELETE").uri("/nonexistent.txt")
-            .body(AxumBody::empty()).unwrap();
+            .method("DELETE")
+            .uri("/nonexistent.txt")
+            .body(AxumBody::empty())
+            .unwrap();
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), SC::NOT_FOUND);
     }
@@ -279,15 +294,18 @@ mod tests {
         let app = app(state.clone());
 
         let req = axum::http::Request::builder()
-            .method("PUT").uri("/empty.txt")
+            .method("PUT")
+            .uri("/empty.txt")
             .body(AxumBody::empty())
             .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
         assert_eq!(resp.status(), SC::CREATED);
 
         let req = axum::http::Request::builder()
-            .method("GET").uri("/empty.txt")
-            .body(AxumBody::empty()).unwrap();
+            .method("GET")
+            .uri("/empty.txt")
+            .body(AxumBody::empty())
+            .unwrap();
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), SC::OK);
         let body = body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
@@ -308,15 +326,18 @@ mod tests {
 
         for (path, expected_ct) in test_cases {
             let req = axum::http::Request::builder()
-                .method("PUT").uri(path)
+                .method("PUT")
+                .uri(path)
                 .body(AxumBody::from("test"))
                 .unwrap();
             let resp = app.clone().oneshot(req).await.unwrap();
             assert_eq!(resp.status(), SC::CREATED);
 
             let req = axum::http::Request::builder()
-                .method("GET").uri(path)
-                .body(AxumBody::empty()).unwrap();
+                .method("GET")
+                .uri(path)
+                .body(AxumBody::empty())
+                .unwrap();
             let resp = app.clone().oneshot(req).await.unwrap();
             assert_eq!(resp.status(), SC::OK);
             assert_eq!(resp.headers().get("content-type").unwrap(), expected_ct);
@@ -329,21 +350,22 @@ mod tests {
         let app = app(state.clone());
 
         let req = axum::http::Request::builder()
-            .method("PUT").uri("/cache-test.txt")
+            .method("PUT")
+            .uri("/cache-test.txt")
             .body(AxumBody::from("test"))
             .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
         assert_eq!(resp.status(), SC::CREATED);
 
         let req = axum::http::Request::builder()
-            .method("GET").uri("/cache-test.txt")
-            .body(AxumBody::empty()).unwrap();
+            .method("GET")
+            .uri("/cache-test.txt")
+            .body(AxumBody::empty())
+            .unwrap();
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), SC::OK);
         assert_eq!(resp.headers().get("cache-control").unwrap(), "no-store");
     }
-
-
 
     #[tokio::test]
     async fn get_object_with_multiple_chunks() {
@@ -351,15 +373,18 @@ mod tests {
         let app = app(state.clone());
 
         let req = axum::http::Request::builder()
-            .method("PUT").uri("/multi.txt")
+            .method("PUT")
+            .uri("/multi.txt")
             .body(AxumBody::from("part1part2part3"))
             .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
         assert_eq!(resp.status(), SC::CREATED);
 
         let req = axum::http::Request::builder()
-            .method("GET").uri("/multi.txt")
-            .body(AxumBody::empty()).unwrap();
+            .method("GET")
+            .uri("/multi.txt")
+            .body(AxumBody::empty())
+            .unwrap();
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), SC::OK);
         let body = body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
@@ -372,15 +397,18 @@ mod tests {
         let app = app(state.clone());
 
         let req = axum::http::Request::builder()
-            .method("PUT").uri("/empty.txt")
+            .method("PUT")
+            .uri("/empty.txt")
             .body(AxumBody::empty())
             .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
         assert_eq!(resp.status(), SC::CREATED);
 
         let req = axum::http::Request::builder()
-            .method("GET").uri("/empty.txt")
-            .body(AxumBody::empty()).unwrap();
+            .method("GET")
+            .uri("/empty.txt")
+            .body(AxumBody::empty())
+            .unwrap();
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), SC::OK);
         let body = body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
@@ -398,17 +426,19 @@ mod tests {
             Bytes::from_static(b"two-"),
             Bytes::from_static(b"three"),
         ];
-        let stream = futures_util::stream::unfold((0usize, chunks.clone()), |(i, chunks)| async move {
-            if i < chunks.len() {
-                sleep(Duration::from_millis(20)).await;
-                let next = chunks[i].clone();
-                Some((Ok::<Bytes, std::io::Error>(next), (i + 1, chunks)))
-            } else {
-                None
-            }
-        });
+        let stream =
+            futures_util::stream::unfold((0usize, chunks.clone()), |(i, chunks)| async move {
+                if i < chunks.len() {
+                    sleep(Duration::from_millis(20)).await;
+                    let next = chunks[i].clone();
+                    Some((Ok::<Bytes, std::io::Error>(next), (i + 1, chunks)))
+                } else {
+                    None
+                }
+            });
         let put_req = axum::http::Request::builder()
-            .method("PUT").uri("/streaming.bin")
+            .method("PUT")
+            .uri("/streaming.bin")
             .body(AxumBody::from_stream(stream))
             .unwrap();
 
@@ -418,8 +448,10 @@ mod tests {
         sleep(Duration::from_millis(5)).await;
 
         let get_req = axum::http::Request::builder()
-            .method("GET").uri("/streaming.bin")
-            .body(AxumBody::empty()).unwrap();
+            .method("GET")
+            .uri("/streaming.bin")
+            .body(AxumBody::empty())
+            .unwrap();
         let resp = app.clone().oneshot(get_req).await.unwrap();
         assert_eq!(resp.status(), SC::OK);
         let body = body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
@@ -439,17 +471,19 @@ mod tests {
             Err::<Bytes, std::io::Error>(std::io::Error::new(std::io::ErrorKind::Other, "boom")),
         ]);
         let req = axum::http::Request::builder()
-            .method("PUT").uri("/err.bin")
+            .method("PUT")
+            .uri("/err.bin")
             .body(AxumBody::from_stream(err_stream))
             .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
         assert_eq!(resp.status(), SC::BAD_REQUEST);
 
         let req = axum::http::Request::builder()
-            .method("GET").uri("/err.bin")
-            .body(AxumBody::empty()).unwrap();
+            .method("GET")
+            .uri("/err.bin")
+            .body(AxumBody::empty())
+            .unwrap();
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), SC::NOT_FOUND);
     }
-
 }
