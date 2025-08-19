@@ -1,4 +1,4 @@
-use anyhow::Context;
+use crate::error::{AppResult, AppError, ContextExt};
 use axum::{
     http::Method,
     routing::get,
@@ -57,11 +57,10 @@ pub async fn create_app(state: SharedState) -> Router {
         .layer(cors)
 }
 
-pub async fn run_server(state: SharedState) -> anyhow::Result<()> {
+pub async fn run_server(state: SharedState) -> AppResult<()> {
     let port: u16 = std::env::var("PORT")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(8080);
+        .map(|s| s.parse())
+        .unwrap_or(Ok(8080))?;
 
     let app = create_app(state).await;
 
@@ -77,7 +76,7 @@ pub async fn run_server(state: SharedState) -> anyhow::Result<()> {
 
     if let Err(e) = res {
         error!(error = %e, "server error");
-        return Err(e.into());
+        return Err(AppError::Server(e.to_string()));
     }
     info!("server stopped");
     Ok(())

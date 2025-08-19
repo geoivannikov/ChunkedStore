@@ -1,6 +1,7 @@
 use chunked_store::server;
+use chunked_store::error::AppResult;
 
-fn setup_app() -> anyhow::Result<chunked_store::models::SharedState> {
+fn setup_app() -> AppResult<chunked_store::models::SharedState> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
@@ -14,7 +15,7 @@ fn setup_app() -> anyhow::Result<chunked_store::models::SharedState> {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> AppResult<()> {
     let state = setup_app()?;
     server::run_server(state).await
 }
