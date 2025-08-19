@@ -23,7 +23,6 @@ fi
 
 set -x
 "$TESTS_DIR/http_methods.sh"
-"$TESTS_DIR/cors.sh"
 "$TESTS_DIR/streaming.sh"
 "$TESTS_DIR/video.sh"
 set +x

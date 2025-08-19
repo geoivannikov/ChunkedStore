@@ -15,10 +15,7 @@ pub async fn health() -> impl IntoResponse {
     (StatusCode::OK, "ok\n")
 }
 
-pub async fn cors_preflight(Path(path): Path<String>) -> impl IntoResponse {
-    tracing::debug!(%path, "CORS preflight request");
-    StatusCode::NO_CONTENT
-}
+
 
 pub async fn get_object(
     State(state): State<SharedState>,
@@ -346,19 +343,7 @@ mod tests {
         assert_eq!(resp.headers().get("cache-control").unwrap(), "no-store");
     }
 
-    #[tokio::test]
-    async fn cors_preflight_handler() {
-        let state = test_state();
-        let app = Router::new()
-            .route("/{*path}", get(get_object).put(put_object).delete(delete_object).options(cors_preflight))
-            .with_state(state);
 
-        let req = axum::http::Request::builder()
-            .method("OPTIONS").uri("/test.txt")
-            .body(AxumBody::empty()).unwrap();
-        let resp = app.oneshot(req).await.unwrap();
-        assert_eq!(resp.status(), SC::NO_CONTENT);
-    }
 
     #[tokio::test]
     async fn get_object_with_multiple_chunks() {

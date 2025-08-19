@@ -1,19 +1,15 @@
 use crate::error::{AppResult, AppError, ContextExt};
 use axum::{
-    http::Method,
     routing::get,
     Router,
 };
 use std::net::SocketAddr;
 use tokio::signal;
-use tower_http::{
-    cors::{Any, CorsLayer},
-    trace::TraceLayer,
-};
+use tower_http::trace::TraceLayer;
 use tracing::{error, info};
 
 use crate::models::SharedState;
-use crate::handlers::{health, cors_preflight, get_object, put_object, delete_object};
+use crate::handlers::{health, get_object, put_object, delete_object};
 
 pub async fn shutdown_signal() {
     let ctrl_c = async {
@@ -38,23 +34,16 @@ pub async fn shutdown_signal() {
 }
 
 pub async fn create_app(state: SharedState) -> Router {
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods([Method::GET, Method::PUT, Method::DELETE, Method::OPTIONS])
-        .allow_headers(Any);
-
     Router::new()
         .route("/healthz", get(health))
         .route(
             "/{*path}",
             get(get_object)
                 .put(put_object)
-                .delete(delete_object)
-                .options(cors_preflight),
+                .delete(delete_object),
         )
         .with_state(state)
         .layer(TraceLayer::new_for_http())
-        .layer(cors)
 }
 
 pub async fn run_server(state: SharedState) -> AppResult<()> {
@@ -104,31 +93,14 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[tokio::test]
-    async fn cors_headers_present() {
-        let state = SharedState::default();
-        let app = create_app(state).await;
 
-        let req = axum::http::Request::builder()
-            .method(Method::OPTIONS)
-            .uri("/test.txt")
-            .header("Origin", "http://localhost:3000")
-            .header("Access-Control-Request-Method", "GET")
-            .body(Body::empty())
-            .unwrap();
-
-        let resp = app.oneshot(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert!(resp.headers().contains_key("access-control-allow-origin"));
-        assert!(resp.headers().contains_key("access-control-allow-methods"));
-    }
 
     #[tokio::test]
     async fn app_has_all_routes() {
         let state = SharedState::default();
         let app = create_app(state).await;
 
-        let methods = [Method::GET, Method::PUT, Method::DELETE, Method::OPTIONS];
+        let methods = [Method::GET, Method::PUT, Method::DELETE];
         for method in methods {
             let req = axum::http::Request::builder()
                 .method(method)
@@ -189,24 +161,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
-    #[tokio::test]
-    async fn test_cors_methods_allowed() {
-        let state = SharedState::default();
-        let app = create_app(state).await;
 
-        let methods = [Method::GET, Method::PUT, Method::DELETE, Method::OPTIONS];
-        for method in methods {
-            let req = axum::http::Request::builder()
-                .method(method)
-                .uri("/test")
-                .header("Origin", "http://localhost:3000")
-                .body(Body::empty())
-                .unwrap();
-
-            let resp = app.clone().oneshot(req).await.unwrap();
-            assert!(resp.headers().contains_key("access-control-allow-origin"));
-        }
-    }
 
     #[tokio::test]
     async fn test_health_route_specific() {
