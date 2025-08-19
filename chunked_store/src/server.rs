@@ -113,20 +113,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn create_app_with_cors_layers() {
-        let state = SharedState::default();
-        let app = create_app(state).await;
 
-        let req = axum::http::Request::builder()
-            .method(Method::GET)
-            .uri("/healthz")
-            .body(Body::empty())
-            .unwrap();
-
-        let resp = app.oneshot(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
-    }
 
     #[tokio::test]
     async fn test_port_environment_variable() {

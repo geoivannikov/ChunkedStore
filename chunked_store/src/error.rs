@@ -11,9 +11,9 @@ pub enum AppError {
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AppError::Io(err) => write!(f, "IO error: {}", err),
-            AppError::Server(msg) => write!(f, "Server error: {}", msg),
-            AppError::Configuration(msg) => write!(f, "Configuration error: {}", msg),
+            AppError::Io(err) => write!(f, "IO error: {err}"),
+            AppError::Server(msg) => write!(f, "Server error: {msg}"),
+            AppError::Configuration(msg) => write!(f, "Configuration error: {msg}"),
         }
     }
 }
@@ -34,7 +34,7 @@ impl From<axum::Error> for AppError {
 
 impl From<std::num::ParseIntError> for AppError {
     fn from(err: std::num::ParseIntError) -> Self {
-        AppError::Configuration(format!("Failed to parse port number: {}", err))
+        AppError::Configuration(format!("Failed to parse port number: {err}"))
     }
 }
 
