@@ -178,7 +178,7 @@ mod tests {
     use axum::body::{self, Body as AxumBody};
     use axum::Router;
     use axum::routing::get;
-    use tower::util::ServiceExt; // for .oneshot
+    use tower::util::ServiceExt;
 
     fn test_state() -> SharedState {
         std::sync::Arc::new(crate::models::AppState::default())
