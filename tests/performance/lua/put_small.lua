@@ -1,12 +1,13 @@
--- small_chunked_test.lua
+-- PUT small files test
 counter = 0
+sizes = {1024, 2048, 4096} -- 1KB, 2KB, 4KB
 
 request = function()
     counter = counter + 1
-    local sizes = {100, 1024} -- Только 100B и 1KB
     local size = sizes[(counter % #sizes) + 1]
     local data = string.rep("A", size)
-    local path = "/small_file_" .. counter .. ".dat"
+    local timestamp = os.time()
+    local path = "/small_file_" .. counter .. "_" .. timestamp .. ".dat"
     
     return wrk.format("PUT", path, {
         ["Content-Type"] = "application/octet-stream"

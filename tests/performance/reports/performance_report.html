@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ChunkedStore Performance Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; text-align: center; margin-bottom: 30px; }
+        .timestamp { color: #666; font-size: 0.9em; text-align: center; margin-bottom: 30px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #4CAF50; color: white; font-weight: bold; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #f5f5f5; }
+        .metric { font-family: monospace; font-weight: bold; }
+        .good { color: #4CAF50; }
+        .warning { color: #FF9800; }
+        .error { color: #f44336; }
+        .test-section { margin: 30px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        .results { background: #f8f8f8; padding: 15px; font-family: monospace; font-size: 0.9em; white-space: pre-wrap; }
+        h2 { color: #333; margin-top: 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ChunkedStore Performance Report</h1>
+        <p class="timestamp">Generated: $(date)</p>
+        
+        <h2>📊 Performance Summary</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Test</th>
+                    <th>RPS</th>
+                    <th>Transfer/sec</th>
+                    <th>Avg Latency</th>
+                    <th>Max Latency</th>
+                    <th>Total Requests</th>
+                    <th>Socket Errors</th>
+                    <th>Non-2xx Responses</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>upload chunked</strong></td>
+                    <td class="metric error">9168.62</td>
+                    <td class="metric">1.30MB</td>
+                    <td class="metric">2.41ms</td>
+                    <td class="metric">265.88ms</td>
+                    <td class="metric">275731</td>
+                    <td class="metric">  connect 0, read 205828, write 1800, timeout 0</td>
+                    <td class="metric">759</td>
+                </tr>
+                <tr>
+                    <td><strong>upload large</strong></td>
+                    <td class="metric error">5011.14</td>
+                    <td class="metric">729.16KB</td>
+                    <td class="metric">667.71us</td>
+                    <td class="metric">17.85ms</td>
+                    <td class="metric">150698</td>
+                    <td class="metric">  connect 0, read 2, write 1, timeout 0</td>
+                    <td class="metric">2</td>
+                </tr>
+                <tr>
+                    <td><strong>upload small</strong></td>
+                    <td class="metric error">15042.76</td>
+                    <td class="metric">2.17MB</td>
+                    <td class="metric">8.33ms</td>
+                    <td class="metric">660.12ms</td>
+                    <td class="metric">451560</td>
+                    <td class="metric">N/A</td>
+                    <td class="metric">73216</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <h2>📋 Detailed Results</h2>
+        <div class="test-section">
+            <h2>upload chunked</h2>
+            <div class="results">
+Running 30s test @ http://localhost:8080/
+  4 threads and 10 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     2.41ms   17.09ms 265.88ms   98.72%
+    Req/Sec     2.89k   479.38     3.97k    84.31%
+  275731 requests in 30.07s, 39.19MB read
+  Socket errors: connect 0, read 205828, write 1800, timeout 0
+  Non-2xx or 3xx responses: 759
+Requests/sec:   9168.62
+Transfer/sec:      1.30MB
+            </div>
+        </div>
+        <div class="test-section">
+            <h2>upload large</h2>
+            <div class="results">
+Running 30s test @ http://localhost:8080/
+  2 threads and 5 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   667.71us  841.08us  17.85ms   93.62%
+    Req/Sec     2.52k   487.65     3.23k    74.00%
+  150698 requests in 30.07s, 21.41MB read
+  Socket errors: connect 0, read 2, write 1, timeout 0
+  Non-2xx or 3xx responses: 2
+Requests/sec:   5011.14
+Transfer/sec:    729.16KB
+            </div>
+        </div>
+        <div class="test-section">
+            <h2>upload small</h2>
+            <div class="results">
+Running 30s test @ http://localhost:8080/
+  4 threads and 20 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     8.33ms   54.33ms 660.12ms   98.06%
+    Req/Sec     3.85k   814.33     6.86k    73.30%
+  451560 requests in 30.02s, 65.21MB read
+  Non-2xx or 3xx responses: 73216
+Requests/sec:  15042.76
+Transfer/sec:      2.17MB
+            </div>
+        </div>
+    </div>
+</body>
+</html>
